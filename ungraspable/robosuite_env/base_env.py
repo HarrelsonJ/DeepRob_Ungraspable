@@ -209,15 +209,15 @@ class BaseEnv(ManipulationEnv):
         self.table_offset_z_min = 0.065
         self.table_offset_z_max = 0.065
 
-        self.object_size_x_min = 0.15
-        self.object_size_x_max = 0.15
-        self.object_size_x_val = 0.15
+        self.object_size_x_min = 0.06
+        self.object_size_x_max = 0.06
+        self.object_size_x_val = 0.06
         self.object_size_y_min = 0.20
         self.object_size_y_max = 0.20
         self.object_size_y_val = 0.20
-        self.object_size_z_min = 0.05
-        self.object_size_z_max = 0.05
-        self.object_size_z_val = 0.05
+        self.object_size_z_min = 0.06
+        self.object_size_z_max = 0.06
+        self.object_size_z_val = 0.06
         self.object_density_min = 86.
         self.object_density_max = 86.
         self.object_density_val = 86.
@@ -295,10 +295,10 @@ class BaseEnv(ManipulationEnv):
             "specular": "0.4",
             "shininess": "0.1",
         }
-        redwood = CustomMaterial(
-            texture="WoodRed",
-            tex_name="redwood",
-            mat_name="redwood_mat",
+        obj_texture = CustomMaterial(
+            texture="WoodBlue",
+            tex_name="bluewood",
+            mat_name="bluewood_mat",
             tex_attrib=tex_attrib,
             mat_attrib=mat_attrib,
         )
@@ -315,7 +315,7 @@ class BaseEnv(ManipulationEnv):
             size_max=[self.object_size_x_val / 2, self.object_size_y_val / 2, self.object_size_z_val / 2],
             # [0.018, 0.018, 0.018])
             rgba=[1, 0, 0, 1],
-            material=redwood,
+            material=obj_texture,
             density=self.object_density_val,
         )
 

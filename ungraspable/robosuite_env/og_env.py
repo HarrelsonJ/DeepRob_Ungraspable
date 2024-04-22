@@ -189,13 +189,17 @@ class OccludedGraspingSimEnv(BaseEnv):
 
         batch_size = eef_pos.shape[0]
         table_top = self.table_offset[2]
+        table_left = self.table_offset[0] + self.table_full_size[0] / 2
         penalty_list = []
         for site in sites:
             pos, _ = get_global_pose(eef_pos, eef_quat,
                                      np.repeat(np.array([site]), batch_size, axis=0),
                                      np.repeat(np.array([[1., 0., 0., 0.]]), batch_size, axis=0))
             height_margin = pos[..., 2] - table_top
-            penalty = np.clip(height_margin, None, 0)
+            left_margin = table_left - pos[..., 0]
+            penalty_height = np.clip(height_margin, None, 0)
+            penalty_left = np.clip(left_margin, None, 0)
+            penalty = np.minimum(penalty_height, penalty_left)
             penalty_list.append(penalty)
 
         penalty_arr = np.vstack(penalty_list)
@@ -249,63 +253,72 @@ class OccludedGraspingSimEnv(BaseEnv):
     """
 
     def sample_goal(self):
-        # Sample grasp location from the edges of a square and point to the center
-        # Returns position and quaternion of the grip_site in the cube coordinate
-        if self.goal_range == "left":
-            rand_num = np.random.uniform(0, 1)
-        elif self.goal_range == "front":
-            rand_num = np.random.uniform(1, 2)
-        elif self.goal_range == "right":
-            rand_num = np.random.uniform(2, 3)
-        elif self.goal_range == "back":
-            rand_num = np.random.uniform(3, 4)
-        elif self.goal_range == "all":
-            rand_num = np.random.rand() * 4
-        elif self.goal_range == "fixed":
-            rand_num = 1.5  # top middle grasp point by default
-        else:  # Use threshold
-            rand_num = np.random.uniform(self.goal_range_min, self.goal_range_max)
+        # # Sample grasp location from the edges of a square and point to the center
+        # # Returns position and quaternion of the grip_site in the cube coordinate
+        # if self.goal_range == "left":
+        #     rand_num = np.random.uniform(0, 1)
+        # elif self.goal_range == "front":
+        #     rand_num = np.random.uniform(1, 2)
+        # elif self.goal_range == "right":
+        #     rand_num = np.random.uniform(2, 3)
+        # elif self.goal_range == "back":
+        #     rand_num = np.random.uniform(3, 4)
+        # elif self.goal_range == "all":
+        #     rand_num = np.random.rand() * 4
+        # elif self.goal_range == "fixed":
+        #     rand_num = 1.5  # top middle grasp point by default
+        # else:  # Use threshold
+        #     rand_num = np.random.uniform(self.goal_range_min, self.goal_range_max)
 
-        # Parameterize the grasp poses
-        # \\| | | | |// form 0 to 1
-        def param_to_pose(num):
-            p, a = 0, 0
-            if num < 0.25:  # Left corner
-                # convert range from [0, 0.25) to [-np.pi/4, 0)
-                p, a = -1, - np.pi * (num - 0.25)
-            elif 0.25 <= num < 0.75:  # On the edge
-                # convert range from [0.25, 0.75] to [-1, 1]
-                p, a = (num - 0.5) * 4, 0
-            elif 0.75 <= num < 1:  # Right corner
-                # convert range from [0.75, 1) to [0, np.pi/4)
-                p, a = 1, - np.pi * (num - 0.75)
-            return p, a
+        # # Parameterize the grasp poses
+        # # \\| | | | |// form 0 to 1
+        # def param_to_pose(num):
+        #     p, a = 0, 0
+        #     if num < 0.25:  # Left corner
+        #         # convert range from [0, 0.25) to [-np.pi/4, 0)
+        #         p, a = -1, - np.pi * (num - 0.25)
+        #     elif 0.25 <= num < 0.75:  # On the edge
+        #         # convert range from [0.25, 0.75] to [-1, 1]
+        #         p, a = (num - 0.5) * 4, 0
+        #     elif 0.75 <= num < 1:  # Right corner
+        #         # convert range from [0.75, 1) to [0, np.pi/4)
+        #         p, a = 1, - np.pi * (num - 0.75)
+        #     return p, a
 
-        # Generate a random number from 0~4 representing four edges
-        rand_num = rand_num % 4
-        if rand_num < 1:  # Left
-            pp, aa = param_to_pose(rand_num)
-            pos_x, pos_y, angle = -pp, -1, np.pi / 2 + aa
-        elif rand_num < 2:  # Front
-            pp, aa = param_to_pose(rand_num - 1)
-            pos_x, pos_y, angle = -1, pp, aa
-        elif rand_num < 3:  # Right
-            pp, aa = param_to_pose(rand_num - 2)
-            pos_x, pos_y, angle = pp, 1, -np.pi / 2 + aa
-        else:  # Back
-            pp, aa = param_to_pose(rand_num - 3)
-            pos_x, pos_y, angle = 1, -pp, -np.pi + aa
+        # # Generate a random number from 0~4 representing four edges
+        # rand_num = rand_num % 4
+        # if rand_num < 1:  # Left
+        #     pp, aa = param_to_pose(rand_num)
+        #     pos_x, pos_y, angle = -pp, -1, np.pi / 2 + aa
+        # elif rand_num < 2:  # Front
+        #     pp, aa = param_to_pose(rand_num - 1)
+        #     pos_x, pos_y, angle = -1, pp, aa
+        # elif rand_num < 3:  # Right
+        #     pp, aa = param_to_pose(rand_num - 2)
+        #     pos_x, pos_y, angle = pp, 1, -np.pi / 2 + aa
+        # else:  # Back
+        #     pp, aa = param_to_pose(rand_num - 3)
+        #     pos_x, pos_y, angle = 1, -pp, -np.pi + aa
+        
+        rand_num = 0.5
+        angle = 0
+        pos_x = 0
+        pos_y = 0
+        pos_z = 1
+        pos_z = 0
 
         # Calculate the position of the grasp based on the shape so that the grasp is on the edge
         object_shape = self.cube.size
         angle = angle  # + np.random.uniform(-30, 30)*np.pi/180
         pos_x = pos_x * (object_shape[0] - 0.02)
         pos_y = pos_y * (object_shape[1] - 0.02)
-        pos = np.array([pos_x, pos_y, 0])
+        pos_z = pos_z * (object_shape[2] - 0.02)
+        pos = np.array([pos_x, pos_y, pos_z])
         rotation = np.array([0, 0, angle])  # Additional rotation along z axis in the object frame
 
         # Default orientation of the grip_site wrt global coordinate
-        default_quat = euler2quat(np.array([0, np.pi / 2, 0]))
+        # default_quat = euler2quat(np.array([0, np.pi / 2, 0])) # Ground occluded
+        default_quat = euler2quat(np.array([0, np.pi, 0]))
         quat = quat_mul(euler2quat(rotation), default_quat)
 
         # Convert grip_site pose to the base of the target gripper object for visualization
