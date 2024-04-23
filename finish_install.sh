@@ -1,5 +1,5 @@
 sudo apt-get update
-sudo apt install libosmesa6-dev libgl1-mesa-glx libglfw3 libglew-dev libstdc++6
+sudo apt install libosmesa6-dev libgl1-mesa-glx libglfw3 libstdc++6
 conda install -c conda-forge gcc=12.1.0
 
 conda create --name ungraspable python=3.7.9
