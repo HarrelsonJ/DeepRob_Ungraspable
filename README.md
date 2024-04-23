@@ -48,6 +48,12 @@ After extracting the zip, move the extracted folder to `~/.mujoco/mujoco200`.
 
 Download the [MuJoCo license file](https://www.roboti.us/file/mjkey.txt) and put it into `~/.mujoco/mjkey.txt`.
 
+Run the following command:
+
+```bash
+sudo apt install libglew-dev
+```
+
 Add the following to your .bashrc, then source it.
 
 ```bash
