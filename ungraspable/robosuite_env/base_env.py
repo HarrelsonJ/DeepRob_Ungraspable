@@ -149,6 +149,7 @@ class BaseEnv(ManipulationEnv):
         env_configuration="default",
         controller_configs=None,
         gripper_types="default",
+        occlusion_type="ground",
         initialization_noise="default",
         table_full_size=(0.45, 0.54, 0.107),
         table_friction=(0.3, 5e-3, 1e-4),
@@ -198,8 +199,6 @@ class BaseEnv(ManipulationEnv):
         self.placement_initializer = placement_initializer
 
         # Additional Parameters for ADR
-        self.object_to_wall_dist_min = 0
-        self.object_to_wall_dist_max = 0
         self.object_initial_pose_y_min = 0
         self.object_initial_pose_y_max = 0
         self.object_pos_noise = 0
@@ -209,15 +208,8 @@ class BaseEnv(ManipulationEnv):
         self.table_offset_z_min = 0.065
         self.table_offset_z_max = 0.065
 
-        self.object_size_x_min = 0.06
-        self.object_size_x_max = 0.06
-        self.object_size_x_val = 0.06
-        self.object_size_y_min = 0.20
-        self.object_size_y_max = 0.20
-        self.object_size_y_val = 0.20
-        self.object_size_z_min = 0.06
-        self.object_size_z_max = 0.06
-        self.object_size_z_val = 0.06
+        self.occlusion_type = occlusion_type
+        self.init_box_size()
         self.object_density_min = 86.
         self.object_density_max = 86.
         self.object_density_val = 86.
@@ -260,12 +252,44 @@ class BaseEnv(ManipulationEnv):
             camera_depths=camera_depths,
             camera_segmentations=camera_segmentations,
         )
+    
+    def init_box_size(self):
+        if self.occlusion_type == 'ground':
+            self.object_size_x_min = 0.15
+            self.object_size_x_max = 0.15
+            self.object_size_x_val = 0.15
+            self.object_size_y_min = 0.20
+            self.object_size_y_max = 0.20
+            self.object_size_y_val = 0.20
+            self.object_size_z_min = 0.05
+            self.object_size_z_max = 0.05
+            self.object_size_z_val = 0.05
+            self.object_to_wall_dist_min = 0
+            self.object_to_wall_dist_max = 0
+        else:
+            self.object_size_x_min = 0.06
+            self.object_size_x_max = 0.06
+            self.object_size_x_val = 0.06
+            self.object_size_y_min = 0.20
+            self.object_size_y_max = 0.20
+            self.object_size_y_val = 0.20
+            self.object_size_z_min = 0.06
+            self.object_size_z_max = 0.06
+            self.object_size_z_val = 0.06
+            
+            if self.occlusion_type == 'side':
+                self.object_to_wall_dist_min = 0
+                self.object_to_wall_dist_max = 0
+            else:
+                self.object_to_wall_dist_min = 0.1
+                self.object_to_wall_dist_max = 0.1
 
     def _load_model(self):
         """
         Loads an xml model, puts it in self.model
         """
         super()._load_model()
+        self.init_box_size()
 
         if 'max_translation' in self.robots[0].controller_config:
             self.robots[0].controller_config['max_translation'] = np.random.uniform(self.controller_max_translation_min,
@@ -295,13 +319,23 @@ class BaseEnv(ManipulationEnv):
             "specular": "0.4",
             "shininess": "0.1",
         }
-        obj_texture = CustomMaterial(
-            texture="WoodBlue",
-            tex_name="bluewood",
-            mat_name="bluewood_mat",
-            tex_attrib=tex_attrib,
-            mat_attrib=mat_attrib,
-        )
+        
+        if self.occlusion_type == 'ground':
+            obj_texture = CustomMaterial(
+                texture="WoodRed",
+                tex_name="redwood",
+                mat_name="redwood_mat",
+                tex_attrib=tex_attrib,
+                mat_attrib=mat_attrib,
+            )
+        else:
+            obj_texture = CustomMaterial(
+                texture="WoodBlue",
+                tex_name="bluewood",
+                mat_name="bluewood_mat",
+                tex_attrib=tex_attrib,
+                mat_attrib=mat_attrib,
+            )
 
         self.object_size_x_val = np.random.uniform(self.object_size_x_min, self.object_size_x_max)
         self.object_size_y_val = np.random.uniform(self.object_size_y_min, self.object_size_y_max)
