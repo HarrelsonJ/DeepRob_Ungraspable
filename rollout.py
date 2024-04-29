@@ -40,7 +40,7 @@ if __name__ == "__main__":
     torch.manual_seed(args.seed)
 
     # Get path to saved model
-    kwargs_fpath = os.path.join(args.load_dir, "variant.json")
+    kwargs_fpath = os.path.join(args.load_ground_dir, "variant.json")
     try:
         with open(kwargs_fpath) as f:
             kwargs = json.load(f)
@@ -62,6 +62,10 @@ if __name__ == "__main__":
     env_args["hard_reset"] = True
     env_args["ignore_done"] = True
     env_args["goal_selection"] = args.goal_selection
+    if args.occlusion_type == 'random':
+        env_args["use_random_occlusion"] = True
+    elif args.occlusion_type is not None:
+        env_args["occlusion_type"] = args.occlusion_type
 
     # Specify camera name if we're recording a video
     if args.record_video:
@@ -69,13 +73,13 @@ if __name__ == "__main__":
         env_args["camera_heights"] = 1024
         env_args["camera_widths"] = 1024
 
-    args.load_dir = args.load_dir[:-1] if args.load_dir[-1] == '/' else args.load_dir
+    args.load_ground_dir = args.load_ground_dir[:-1] if args.load_ground_dir[-1] == '/' else args.load_ground_dir
 
     # Setup video recorder if necesssary
     if args.record_video:
         # Grab name of this rollout combo
         # video_name = f'Exp{kwargs["ExpID"]:04d}-{kwargs["seed"]}-{env_args["env_name"]}-{kwargs["ExpGroup"]}'
-        video_name = os.path.basename(args.load_dir)
+        video_name = os.path.basename(args.load_ground_dir)
         if args.itr is not None:
             video_name += "_itr_{}".format(args.itr)
         if args.goal_selection is not None:
@@ -83,7 +87,7 @@ if __name__ == "__main__":
         # Calculate appropriate fps
         fps = int(env_args["control_freq"])
         # Define video writer
-        foldername = os.path.dirname(args.load_dir)
+        foldername = os.path.dirname(args.load_ground_dir)
         if not args.record_images:
             video_writer = imageio.get_writer(os.path.join(foldername, video_name + '.mp4'), fps=fps)
         else:
@@ -116,23 +120,29 @@ if __name__ == "__main__":
 
     model_filename = "params.pkl" if args.itr is None else "itr_{}.pkl".format(args.itr)
 
-    policy, qf, data = load_model(model_path=os.path.join(args.load_dir, model_filename),
+    policy_g, qf_g, data_g = load_model(model_path=os.path.join(args.load_ground_dir, model_filename),
+                                  return_qf=True,
+                                  printout=True,
+                                  use_gpu=args.gpu)
+    
+    policy_s, qf_s, data_s = load_model(model_path=os.path.join(args.load_side_dir, model_filename),
                                   return_qf=True,
                                   printout=True,
                                   use_gpu=args.gpu)
 
+    env.set_adr_models(data_g, data_s)
+    
     if hasattr(env, "set_models"):
-        env.set_models(qf, policy)
-
-    load_adr_progress(env, data)
+        env.set_models(qf_g, policy_g, qf_s, policy_s)
+    
+    # load_adr_progress(env, data_g)
 
     if args.mode == 'grasp_selection':
-        rollout_grasp_selection(env, qf, policy, args, env_args, video_writer)
+        rollout_grasp_selection(env, qf_g, policy_g, qf_s, policy_s, args, env_args, video_writer)
     else:
         # Run rollout
         eval_dict, paths = simulate_policy(
             env=env,
-            policy=policy,
             horizon=env_args["horizon"],
             render=not args.record_video and args.camera != 'none',
             video_writer=video_writer,
@@ -143,7 +153,7 @@ if __name__ == "__main__":
         )
 
         if args.save_paths:
-            pickle.dump(paths, open(os.path.basename(args.load_dir) + ".pkl", "wb"))
+            pickle.dump(paths, open(os.path.basename(args.load_ground_dir) + ".pkl", "wb"))
 
         for k in eval_dict.keys():
             if k == 'FinalReward Max' or k == 'FinalReward Mean' or ('final' in k and 'Mean' in k):

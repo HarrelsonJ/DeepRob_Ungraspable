@@ -150,6 +150,7 @@ class BaseEnv(ManipulationEnv):
         controller_configs=None,
         gripper_types="default",
         occlusion_type="ground",
+        use_random_occlusion=False,
         initialization_noise="default",
         table_full_size=(0.45, 0.54, 0.107),
         table_friction=(0.3, 5e-3, 1e-4),
@@ -207,7 +208,8 @@ class BaseEnv(ManipulationEnv):
         self.table_offset_x_max = 0.5
         self.table_offset_z_min = 0.065
         self.table_offset_z_max = 0.065
-
+        
+        self.use_random_occlusion = use_random_occlusion
         self.occlusion_type = occlusion_type
         self.init_box_size()
         self.object_density_min = 86.
@@ -281,7 +283,7 @@ class BaseEnv(ManipulationEnv):
                 self.object_to_wall_dist_min = 0
                 self.object_to_wall_dist_max = 0
             else:
-                self.object_to_wall_dist_min = 0.1
+                self.object_to_wall_dist_min = 0.05
                 self.object_to_wall_dist_max = 0.1
 
     def _load_model(self):
@@ -289,6 +291,12 @@ class BaseEnv(ManipulationEnv):
         Loads an xml model, puts it in self.model
         """
         super()._load_model()
+        
+        if self.use_random_occlusion:
+            self.occlusion_type = np.random.choice(['ground', 'side', 'none'])
+        
+        print('Occlusion type', self.occlusion_type)
+        
         self.init_box_size()
 
         if 'max_translation' in self.robots[0].controller_config:
@@ -353,7 +361,7 @@ class BaseEnv(ManipulationEnv):
             density=self.object_density_val,
         )
 
-        # # Create placement initializer
+        # Create placement initializer
         xpos_max = self.table_full_size[0] / 2 - self.cube.size[0]
         self.placement_initializer = UniformRandomSampler(
             name="ObjectSampler",
@@ -422,6 +430,9 @@ class BaseEnv(ManipulationEnv):
 
         return observables
 
+    def _reset(self):
+        super().reset()
+    
     def _reset_internal(self):
         """
         Resets simulation internal configurations.

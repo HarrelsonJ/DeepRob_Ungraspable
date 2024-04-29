@@ -43,9 +43,20 @@ class OccludedGraspingSimEnv(BaseEnv):
         # Grasp selection parameters
         self.goal_selection = goal_selection
         self.num_goals = 50
+        
         self.qf = None
+        self.qf_g = None
+        self.qf_s = None
+        
         self.policy = None
+        self.policy_g = None
+        self.policy_s = None
+        
+        self.adr_s = None
+        self.adr_g = None
+        
         self.goal_set = None
+        self.gave_up = False
 
         super().__init__(
             robots=robots,
@@ -362,6 +373,7 @@ class OccludedGraspingSimEnv(BaseEnv):
 
     def reset(self):
         super().reset()
+        self.choose_policy()
         self.goal = self.sample_goal()
         self.goal_set = None
         self.render_target_gripper()
@@ -386,12 +398,72 @@ class OccludedGraspingSimEnv(BaseEnv):
         return
 
     """
+    Resetting Helpers
+    """
+    
+    def set_adr_models(self, adr_g, adr_s):
+        self.adr_g = adr_g
+        self.adr_s = adr_s
+    
+    def set_models(self, qf_g, policy_g, qf_s, policy_s):
+        self.qf_g = qf_g
+        self.policy_g = policy_g
+        
+        self.qf_s = qf_s
+        self.policy_s = policy_s
+        
+        self.choose_policy()
+    
+    def choose_policy(self):
+        GRIPPER_WIDTH = 0.07
+        
+        # If something is undefined, don't try to set the policy
+        if not ((self.qf_g != None) and (self.qf_s != None) and (self.policy_g != None) and (self.policy_g != None)):
+            return
+        
+        # Use side occlusion policy if we could possibly pick it up from the top
+        if (self.cube.size[0] < GRIPPER_WIDTH) or (self.cube.size[1] < GRIPPER_WIDTH):
+            self.policy = self.policy_s
+            self.qf = self.qf_s
+            self.load_adr_progress(self.adr_s)
+        # Use ground occlusion policy if we could pick it up from the side
+        elif self.cube.size[2] < GRIPPER_WIDTH:
+            self.policy = self.policy_g
+            self.qf = self.qf_g
+            self.load_adr_progress(self.adr_g)
+        # Otherwise it is too big to pick up
+        else:
+            self.gave_up = True
+    
+    def reset_policy(self):
+        self.policy.reset()
+    
+    def get_policy_action(self, o):
+        if not self.gave_up:
+            return self.policy.get_action(o)
+        else:
+            return (np.zeros(self.policy_g.stochastic_policy.output_size, dtype=np.float32), dict())
+
+    def load_adr_progress(self, data):
+        """
+        Load the training progress of ADR.
+        """
+        adr_key = None
+        for k in data.keys():
+            if 'adr_params' in k:
+                adr_key = k
+                break
+        if adr_key is not None:
+            for k, v in data[adr_key].items():
+                val = getattr(self, v['name'])
+                if v['finished']:
+                    setattr(self, v['name'], v['curr_val'])
+                elif v['curr_val'] != val and v['curr_val'] - v['inc'] != val:
+                    setattr(self, v['name'], v['curr_val'] - v['inc'])
+        
+    """
     Grasp Selection
     """
-
-    def set_models(self, qf, policy):
-        self.qf = qf
-        self.policy = policy
 
     def select_best_goal(self, obs):
         if self.goal_set is None:

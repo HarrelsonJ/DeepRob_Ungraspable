@@ -14,12 +14,12 @@ from rlkit.torch.sac.policies import MakeDeterministic
 from ungraspable.rlkit_utils.rlkit_custom import get_custom_generic_path_information
 
 
-def rollout_grasp_selection(env, qf, policy, args, env_args, video_writer):
+def rollout_grasp_selection(env, qf_g, policy_g, qf_s, policy_s, args, env_args, video_writer):
     """
     Rollout with grasp selection based on the Q-function.
     """
     if hasattr(env, "set_models"):
-        env.set_models(qf, policy)
+        env.set_models(qf_g, policy_g, qf_s, policy_s)
 
     ranges = ['training', 'all']
     selections = ['uniform', 'argmaxq', 'pose_diff', 'argmaxq_once', 'pose_diff_once']
@@ -45,7 +45,6 @@ def rollout_grasp_selection(env, qf, policy, args, env_args, video_writer):
             # Run rollout
             eval_dict = simulate_policy(
                 env=env,
-                policy=policy,
                 horizon=env_args["horizon"],
                 render=not args.record_video and args.camera != 'none',
                 video_writer=video_writer,
@@ -114,7 +113,6 @@ def load_model(model_path,
 
 def simulate_policy(
         env,
-        policy,
         horizon,
         render=False,
         video_writer=None,
@@ -135,7 +133,6 @@ def simulate_policy(
             print("Rollout episode {}".format(ep))
         path = rollout(
             env,
-            policy,
             max_path_length=horizon,
             render=render,
             video_writer=video_writer,
@@ -158,7 +155,6 @@ def simulate_policy(
 
 def rollout(
         env,
-        agent,
         max_path_length=np.inf,
         render=False,
         render_kwargs=None,
@@ -196,7 +192,7 @@ def rollout(
     agent_infos = []
     env_infos = []
     o = env.reset()
-    agent.reset()
+    env.reset_policy()
     next_o = None
     path_length = 0
 
@@ -213,7 +209,7 @@ def rollout(
         video_writer.append_data(img)
 
     while path_length < max_path_length:
-        a, agent_info = agent.get_action(o)
+        a, agent_info = env.get_policy_action(o)
         next_o, r, d, env_info = env.step(a)
         observations.append(o)
         rewards.append(r)
