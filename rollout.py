@@ -66,6 +66,7 @@ if __name__ == "__main__":
         env_args["use_random_occlusion"] = True
     elif args.occlusion_type is not None:
         env_args["occlusion_type"] = args.occlusion_type
+    env_args["policy_selection"] = args.policy_selection
 
     # Specify camera name if we're recording a video
     if args.record_video:

@@ -350,6 +350,12 @@ def add_rollout_args():
         default=None,
         help='The occlusion type evaluated (ground, side, none, or random)'
     )
+    parser.add_argument(
+        '--policy_selection',
+        type=str,
+        default=None,
+        help='The policy selection method, either "size" for the hardcoded method or "maxq" for the q-function maximizer selector'
+    )
 
 
 def get_env_kwargs(args):

@@ -295,7 +295,7 @@ class BaseEnv(ManipulationEnv):
         if self.use_random_occlusion:
             self.occlusion_type = np.random.choice(['ground', 'side', 'none'])
         
-        print('Occlusion type', self.occlusion_type)
+        # print('Occlusion type', self.occlusion_type)
         
         self.init_box_size()
 

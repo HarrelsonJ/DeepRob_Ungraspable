@@ -19,6 +19,7 @@ class OccludedGraspingSimEnv(BaseEnv):
             goal_range_min=1.5,
             goal_range_max=1.5,
             goal_selection=None,
+            policy_selection=None,
             alpha1=50.,
             alpha2=2.,
             beta=200.,
@@ -43,6 +44,8 @@ class OccludedGraspingSimEnv(BaseEnv):
         # Grasp selection parameters
         self.goal_selection = goal_selection
         self.num_goals = 50
+        
+        self.policy_selection = policy_selection
         
         self.qf = None
         self.qf_g = None
@@ -415,34 +418,64 @@ class OccludedGraspingSimEnv(BaseEnv):
         self.choose_policy()
     
     def choose_policy(self):
-        GRIPPER_WIDTH = 0.07
+        self.gave_up = False
         
-        # If something is undefined, don't try to set the policy
-        if not ((self.qf_g != None) and (self.qf_s != None) and (self.policy_g != None) and (self.policy_g != None)):
-            return
-        
-        # Use side occlusion policy if we could possibly pick it up from the top
-        if (self.cube.size[0] < GRIPPER_WIDTH) or (self.cube.size[1] < GRIPPER_WIDTH):
-            self.policy = self.policy_s
-            self.qf = self.qf_s
-            self.load_adr_progress(self.adr_s)
-        # Use ground occlusion policy if we could pick it up from the side
-        elif self.cube.size[2] < GRIPPER_WIDTH:
-            self.policy = self.policy_g
-            self.qf = self.qf_g
-            self.load_adr_progress(self.adr_g)
-        # Otherwise it is too big to pick up
-        else:
-            self.gave_up = True
+        if self.policy_selection == 'size':
+            GRIPPER_WIDTH = 0.07
+            
+            # If something is undefined, don't try to set the policy
+            if not ((self.qf_g != None) and (self.qf_s != None) and (self.policy_g != None) and (self.policy_g != None)):
+                return
+            
+            # Use side occlusion policy if we could possibly pick it up from the top
+            if (self.cube.size[0] < GRIPPER_WIDTH) or (self.cube.size[1] < GRIPPER_WIDTH):
+                self.policy = self.policy_s
+                self.qf = self.qf_s
+                self.load_adr_progress(self.adr_s)
+            # Use ground occlusion policy if we could pick it up from the side
+            elif self.cube.size[2] < GRIPPER_WIDTH:
+                self.policy = self.policy_g
+                self.qf = self.qf_g
+                self.load_adr_progress(self.adr_g)
+            # Otherwise it is too big to pick up
+            else:
+                self.gave_up = True
     
     def reset_policy(self):
-        self.policy.reset()
+        self.policy_s.reset()
+        self.policy_g.reset()
     
     def get_policy_action(self, o):
-        if not self.gave_up:
-            return self.policy.get_action(o)
-        else:
+        """
+        Given an observation, returns an action.
+        If policy_selection == 'maxq' then it selects the action, either ground or side, that maximizes the q function
+        If policy_selection == 'size' then it selects the action based on the previously decided policy
+        """
+        
+        if self.gave_up:
             return (np.zeros(self.policy_g.stochastic_policy.output_size, dtype=np.float32), dict())
+        
+        # Picks the policy based on the maximum of the q function
+        if self.policy_selection == 'maxq':
+            action_g, agent_info_g = self.policy_g.get_action(o)
+            action_s, agent_info_s = self.policy_s.get_action(o)
+            
+            action_g_torch = torch_ify(np.array([action_g]))
+            action_s_torch = torch_ify(np.array([action_s]))
+            o_torch = torch_ify(np.array([o]))
+            
+            q_value_g = -self.qf_g(o_torch, action_g_torch)
+            q_value_s = -self.qf_s(o_torch, action_s_torch)
+            
+            # Ground is more promising
+            if q_value_g > q_value_s:
+                return action_g, agent_info_g
+            else:
+                return action_s, agent_info_s
+        # Picks the policy based on the hardcoded size detection method
+        else:
+            return self.policy.get_action(o)
+        
 
     def load_adr_progress(self, data):
         """
