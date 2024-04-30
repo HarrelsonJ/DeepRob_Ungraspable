@@ -1,26 +1,24 @@
-# Learning to Grasp the Ungraspable with Emergent Extrinsic Dexterity
+# Choosing how to Grasp the Ungraspable
 
 [//]: # (<div align="center">)
 
-[//]: # (<font size=7>**Learning to Grasp the Ungraspable with Emergent Extrinsic Dexterity**</font>)
+[//]: # (<font size=7>**Choosing how to Grasp the Ungraspable**</font>)
 
-[Wenxuan Zhou](https://wenxuan-zhou.github.io/), [David Held](https://davheld.github.io/)
+### Our Team
 
-Robotics Institute, Carnegie Mellon University
+Jason Brown, Eli Fox, Jacob Harrelson, Srushti Hippargi
 
-Conference on Robot Learning (CoRL) 2022 (Oral)
+University of Michigan
 
-[Paper](https://arxiv.org/abs/2211.01500)
-| [Website](https://sites.google.com/view/grasp-ungraspable)
-| [Real robot code](https://github.com/Wenxuan-Zhou/frankapy_env)
+[Paper](https://deeprob.org/assets/projects/reports/grasping-ungraspable/report.pdf) | [Project Page](https://deeprob.org/w24/reports/grasping-ungraspable/)
 
 ![intro.gif](imgs/intro.gif)
 
 [//]: # (</div>)
 
-In this paper, we build a system based on reinforcement learning that shows 
-emergent extrinsic dexterity behavior with a simple gripper 
-for the "Occluded Grasping" task. This repository contains the code for the
+In this work, we build upon the paper *Grasping the Ungraspable with Emergent Extrinsic Dexterity* by Wenxuan Zhou and David Held. The original paper demonstrates that a simple gripper using intuition about its environment can still perform complex manipulation tasks. That work studies the task of "Occluded Grasping" that aims to reach a grasp in configurations that are initially intersecting with the environment. While the original work only considered occlusions by the ground, our code extends their work by considering occlusions by side walls along with unoccluded configurations. Our system trains different policies for each occlusion type and selects between them at run-time.
+
+This repository contains the code for the
 simulation environment of the Occluded Grasping task and RL
 training and rollouts. The code for the real robot can be found in 
 [a separate repository](https://github.com/Wenxuan-Zhou/frankapy_env).
@@ -30,6 +28,17 @@ is based on [rlkit](https://github.com/rail-berkeley/rlkit). As an overview of t
 defines the Occluded Grasping task. [ungraspable/rlkit_utils](ungraspable/rlkit_utils) defines helper functions to be used with rlkit.
 
 Please feel free to contact us if you have any questions on the code or anything else related to our paper!
+
+### Original Authors
+[Wenxuan Zhou](https://wenxuan-zhou.github.io/), [David Held](https://davheld.github.io/)
+
+Robotics Institute, Carnegie Mellon University
+
+Conference on Robot Learning (CoRL) 2022 (Oral)
+
+[Paper](https://arxiv.org/abs/2211.01500)
+| [Website](https://sites.google.com/view/grasp-ungraspable)
+| [Real robot code](https://github.com/Wenxuan-Zhou/frankapy_env)
 
 ## Installation
 
@@ -86,7 +95,7 @@ Use [viskit](https://github.com/vitchyr/viskit) to visualize training log files.
 ## Usage
 ### Training
 
-Do not train on this branch! Training should be done on the *ground_occlusion* and *side_occlusion* branches for their respective policies.
+**Do not train on this branch!** Training should be done on the *ground_occlusion* and *side_occlusion* branches for their respective policies.
 
 ```bash
 python train.py --ExpID 0000
@@ -116,7 +125,7 @@ python rollout.py --load_ground_dir results/examples/Exp0000_OccludedGraspingSim
 Feel free to try out other checkpoints in the [result/examples](results%2Fexamples) folder.
 
 ## Citation
-If you find this repository useful, please cite our paper:
+If you find this repository useful, please cite the original paper:
 ```
 @inproceedings{zhou2022ungraspable,
   title={Learning to Grasp the Ungraspable with Emergent Extrinsic Dexterity},
