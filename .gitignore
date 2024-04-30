@@ -136,3 +136,6 @@ dmypy.json
 # Ignore results except for examples
 /results/*
 !/results/examples/
+
+# Ignore MUJOCO_LOG
+MUJOCO_LOG.TXT

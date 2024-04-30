@@ -85,6 +85,9 @@ Use [viskit](https://github.com/vitchyr/viskit) to visualize training log files.
 
 ## Usage
 ### Training
+
+Do not train on this branch! Training should be done on the *ground_occlusion* and *side_occlusion* branches for their respective policies.
+
 ```bash
 python train.py --ExpID 0000
 ```
@@ -108,7 +111,7 @@ python your_viskit_folder/viskit/frontend.py ungraspable/results/examples
 ### Visualizing Rollouts
 To visualize a trained policy with onscreen mujoco renderer:
 ```bash
-python rollout.py --load_dir results/examples/Exp0000_OccludedGraspingSimEnv_tmp-0 --camera sideview --grasp_and_lift
+python rollout.py --load_ground_dir results/examples/Exp0000_OccludedGraspingSimEnv_tmp-0 --load_side_dir results/examples/Exp0003_OccludedGraspingSimEnv_tmp-0 --camera sideview --grasp_and_lift
 ```
 Feel free to try out other checkpoints in the [result/examples](results%2Fexamples) folder.
 

@@ -283,10 +283,17 @@ def add_rollout_args():
     Adds rollout arguments needed for evaluating / visualizing a trained rlkit policy
     """
     parser.add_argument(
-        '--load_dir',
+        '--load_ground_dir',
         type=str,
+        default=None,
         required=True,
-        help='path to the snapshot directory folder')
+        help='path to the snapshot directory folder for ground occlusion')
+    parser.add_argument(
+        '--load_side_dir',
+        type=str,
+        default=None,
+        required=True,
+        help='path to the snapshot directory folder for side occlusion')
     parser.add_argument(
         '--num_episodes',
         type=int,
@@ -337,6 +344,18 @@ def add_rollout_args():
         '--grasp_and_lift',
         action='store_true',
         help='If true, grasp the object at the end of the episode for visualization')
+    parser.add_argument(
+        '--occlusion_type',
+        type=str,
+        default=None,
+        help='The occlusion type evaluated (ground, side, none, or random)'
+    )
+    parser.add_argument(
+        '--policy_selection',
+        type=str,
+        default=None,
+        help='The policy selection method, either "size" for the hardcoded method or "maxq" for the q-function maximizer selector'
+    )
 
 
 def get_env_kwargs(args):

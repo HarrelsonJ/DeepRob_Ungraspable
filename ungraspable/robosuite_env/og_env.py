@@ -19,6 +19,7 @@ class OccludedGraspingSimEnv(BaseEnv):
             goal_range_min=1.5,
             goal_range_max=1.5,
             goal_selection=None,
+            policy_selection=None,
             alpha1=50.,
             alpha2=2.,
             beta=200.,
@@ -43,9 +44,22 @@ class OccludedGraspingSimEnv(BaseEnv):
         # Grasp selection parameters
         self.goal_selection = goal_selection
         self.num_goals = 50
+        
+        self.policy_selection = policy_selection
+        
         self.qf = None
+        self.qf_g = None
+        self.qf_s = None
+        
         self.policy = None
+        self.policy_g = None
+        self.policy_s = None
+        
+        self.adr_s = None
+        self.adr_g = None
+        
         self.goal_set = None
+        self.gave_up = False
 
         super().__init__(
             robots=robots,
@@ -189,13 +203,17 @@ class OccludedGraspingSimEnv(BaseEnv):
 
         batch_size = eef_pos.shape[0]
         table_top = self.table_offset[2]
+        table_left = self.table_offset[0] + self.table_full_size[0] / 2
         penalty_list = []
         for site in sites:
             pos, _ = get_global_pose(eef_pos, eef_quat,
                                      np.repeat(np.array([site]), batch_size, axis=0),
                                      np.repeat(np.array([[1., 0., 0., 0.]]), batch_size, axis=0))
             height_margin = pos[..., 2] - table_top
-            penalty = np.clip(height_margin, None, 0)
+            left_margin = table_left - pos[..., 0]
+            penalty_height = np.clip(height_margin, None, 0)
+            penalty_left = np.clip(left_margin, None, 0)
+            penalty = np.minimum(penalty_height, penalty_left)
             penalty_list.append(penalty)
 
         penalty_arr = np.vstack(penalty_list)
@@ -249,23 +267,6 @@ class OccludedGraspingSimEnv(BaseEnv):
     """
 
     def sample_goal(self):
-        # Sample grasp location from the edges of a square and point to the center
-        # Returns position and quaternion of the grip_site in the cube coordinate
-        if self.goal_range == "left":
-            rand_num = np.random.uniform(0, 1)
-        elif self.goal_range == "front":
-            rand_num = np.random.uniform(1, 2)
-        elif self.goal_range == "right":
-            rand_num = np.random.uniform(2, 3)
-        elif self.goal_range == "back":
-            rand_num = np.random.uniform(3, 4)
-        elif self.goal_range == "all":
-            rand_num = np.random.rand() * 4
-        elif self.goal_range == "fixed":
-            rand_num = 1.5  # top middle grasp point by default
-        else:  # Use threshold
-            rand_num = np.random.uniform(self.goal_range_min, self.goal_range_max)
-
         # Parameterize the grasp poses
         # \\| | | | |// form 0 to 1
         def param_to_pose(num):
@@ -278,34 +279,86 @@ class OccludedGraspingSimEnv(BaseEnv):
                 p, a = (num - 0.5) * 4, 0
             elif 0.75 <= num < 1:  # Right corner
                 # convert range from [0.75, 1) to [0, np.pi/4)
-                p, a = 1, - np.pi * (num - 0.75)
+                p, a = 1, -np.pi * (num - 0.75)
             return p, a
-
-        # Generate a random number from 0~4 representing four edges
-        rand_num = rand_num % 4
-        if rand_num < 1:  # Left
-            pp, aa = param_to_pose(rand_num)
-            pos_x, pos_y, angle = -pp, -1, np.pi / 2 + aa
-        elif rand_num < 2:  # Front
-            pp, aa = param_to_pose(rand_num - 1)
-            pos_x, pos_y, angle = -1, pp, aa
-        elif rand_num < 3:  # Right
-            pp, aa = param_to_pose(rand_num - 2)
-            pos_x, pos_y, angle = pp, 1, -np.pi / 2 + aa
-        else:  # Back
-            pp, aa = param_to_pose(rand_num - 3)
-            pos_x, pos_y, angle = 1, -pp, -np.pi + aa
+        
+        # For ground occlusion
+        if self.occlusion_type == 'ground':
+            # Sample grasp location from the edges of a square and point to the center
+            # Returns position and quaternion of the grip_site in the cube coordinate
+            if self.goal_range == "left":
+                rand_num = np.random.uniform(0, 1)
+            elif self.goal_range == "front":
+                rand_num = np.random.uniform(1, 2)
+            elif self.goal_range == "right":
+                rand_num = np.random.uniform(2, 3)
+            elif self.goal_range == "back":
+                rand_num = np.random.uniform(3, 4)
+            elif self.goal_range == "all":
+                rand_num = np.random.rand() * 4
+            elif self.goal_range == "fixed":
+                rand_num = 1.5  # top middle grasp point by default
+            else:  # Use threshold
+                rand_num = np.random.uniform(self.goal_range_min, self.goal_range_max)
+            
+            # Generate a random number from 0~4 representing four edges
+            rand_num = rand_num % 4
+            if rand_num < 1:  # Left
+                pp, aa = param_to_pose(rand_num)
+                pos_x, pos_y, angle = -pp, -1, np.pi / 2 + aa
+            elif rand_num < 2:  # Front
+                pp, aa = param_to_pose(rand_num - 1)
+                pos_x, pos_y, angle = -1, pp, aa
+            elif rand_num < 3:  # Right
+                pp, aa = param_to_pose(rand_num - 2)
+                pos_x, pos_y, angle = pp, 1, -np.pi / 2 + aa
+            else:  # Back
+                pp, aa = param_to_pose(rand_num - 3)
+                pos_x, pos_y, angle = 1, -pp, -np.pi + aa
+            
+            pos_z = 0
+            
+            rotation = np.array([0, 0, angle])  # Additional rotation along z axis in the object frame
+            default_quat = euler2quat(np.array([0, np.pi / 2, 0]))
+        
+        
+        # For side and no occlusion
+        else:
+            if self.goal_range == "top":
+                rand_num = np.random.uniform(1, 2)
+            elif self.goal_range == "all": # Don't consider the bottom, not useful
+                rand_num = np.random.uniform(0.25, 2.75)
+            elif self.goal_range == "fixed":
+                rand_num = 1.5 # top middle grasp point by default
+            else:  # Use threshold
+                rand_num = np.random.uniform(self.goal_range_min, self.goal_range_max)
+            
+            # Generate a random number from 0~4 representing top, around the sides, and bottom
+            rand_num = rand_num % 4
+            if rand_num < 1:  # Left
+                pp, aa = param_to_pose(rand_num)
+                pos_z, pos_y, angle = pp, 1, np.pi / 2 + aa
+            elif rand_num < 2:  # Top
+                pp, aa = param_to_pose(rand_num - 1)
+                pos_z, pos_y, angle = 1, -pp, aa
+            elif rand_num < 3:  # Right
+                pp, aa = param_to_pose(rand_num - 2)
+                pos_z, pos_y, angle = -pp, -1, -np.pi / 2 + aa
+            else:  # Bottom
+                pp, aa = param_to_pose(rand_num - 3)
+                pos_z, pos_y, angle = -1, pp, -np.pi + aa
+            
+            pos_x = 0
+            
+            rotation = np.array([-angle, 0, 0])  # Additional rotation along x axis in the object frame
+            default_quat = euler2quat(np.array([0, np.pi, 0]))
 
         # Calculate the position of the grasp based on the shape so that the grasp is on the edge
         object_shape = self.cube.size
-        angle = angle  # + np.random.uniform(-30, 30)*np.pi/180
         pos_x = pos_x * (object_shape[0] - 0.02)
         pos_y = pos_y * (object_shape[1] - 0.02)
-        pos = np.array([pos_x, pos_y, 0])
-        rotation = np.array([0, 0, angle])  # Additional rotation along z axis in the object frame
-
-        # Default orientation of the grip_site wrt global coordinate
-        default_quat = euler2quat(np.array([0, np.pi / 2, 0]))
+        pos_z = pos_z * (object_shape[2] - 0.02)
+        pos = np.array([pos_x, pos_y, pos_z])
         quat = quat_mul(euler2quat(rotation), default_quat)
 
         # Convert grip_site pose to the base of the target gripper object for visualization
@@ -323,6 +376,7 @@ class OccludedGraspingSimEnv(BaseEnv):
 
     def reset(self):
         super().reset()
+        self.choose_policy()
         self.goal = self.sample_goal()
         self.goal_set = None
         self.render_target_gripper()
@@ -347,12 +401,102 @@ class OccludedGraspingSimEnv(BaseEnv):
         return
 
     """
+    Resetting Helpers
+    """
+    
+    def set_adr_models(self, adr_g, adr_s):
+        self.adr_g = adr_g
+        self.adr_s = adr_s
+    
+    def set_models(self, qf_g, policy_g, qf_s, policy_s):
+        self.qf_g = qf_g
+        self.policy_g = policy_g
+        
+        self.qf_s = qf_s
+        self.policy_s = policy_s
+        
+        self.choose_policy()
+    
+    def choose_policy(self):
+        self.gave_up = False
+        
+        if self.policy_selection == 'size':
+            GRIPPER_WIDTH = 0.07
+            
+            # If something is undefined, don't try to set the policy
+            if not ((self.qf_g != None) and (self.qf_s != None) and (self.policy_g != None) and (self.policy_g != None)):
+                return
+            
+            # Use side occlusion policy if we could possibly pick it up from the top
+            if (self.cube.size[0] < GRIPPER_WIDTH) or (self.cube.size[1] < GRIPPER_WIDTH):
+                self.policy = self.policy_s
+                self.qf = self.qf_s
+                self.load_adr_progress(self.adr_s)
+            # Use ground occlusion policy if we could pick it up from the side
+            elif self.cube.size[2] < GRIPPER_WIDTH:
+                self.policy = self.policy_g
+                self.qf = self.qf_g
+                self.load_adr_progress(self.adr_g)
+            # Otherwise it is too big to pick up
+            else:
+                self.gave_up = True
+    
+    def reset_policy(self):
+        self.policy_s.reset()
+        self.policy_g.reset()
+    
+    def get_policy_action(self, o):
+        """
+        Given an observation, returns an action.
+        If policy_selection == 'maxq' then it selects the action, either ground or side, that maximizes the q function
+        If policy_selection == 'size' then it selects the action based on the previously decided policy
+        """
+        
+        if self.gave_up:
+            return (np.zeros(self.policy_g.stochastic_policy.output_size, dtype=np.float32), dict())
+        
+        # Picks the policy based on the maximum of the q function
+        if self.policy_selection == 'maxq':
+            action_g, agent_info_g = self.policy_g.get_action(o)
+            action_s, agent_info_s = self.policy_s.get_action(o)
+            
+            action_g_torch = torch_ify(np.array([action_g]))
+            action_s_torch = torch_ify(np.array([action_s]))
+            o_torch = torch_ify(np.array([o]))
+            
+            q_value_g = -self.qf_g(o_torch, action_g_torch)
+            q_value_s = -self.qf_s(o_torch, action_s_torch)
+            
+            # Ground is more promising
+            if q_value_g > q_value_s:
+                return action_g, agent_info_g
+            else:
+                return action_s, agent_info_s
+        # Picks the policy based on the hardcoded size detection method
+        else:
+            return self.policy.get_action(o)
+        
+
+    def load_adr_progress(self, data):
+        """
+        Load the training progress of ADR.
+        """
+        adr_key = None
+        for k in data.keys():
+            if 'adr_params' in k:
+                adr_key = k
+                break
+        if adr_key is not None:
+            for k, v in data[adr_key].items():
+                val = getattr(self, v['name'])
+                if v['finished']:
+                    setattr(self, v['name'], v['curr_val'])
+                elif v['curr_val'] != val and v['curr_val'] - v['inc'] != val:
+                    setattr(self, v['name'], v['curr_val'] - v['inc'])
+        
+    """
     Grasp Selection
     """
-
-    def set_models(self, qf, policy):
-        self.qf = qf
-        self.policy = policy
 
     def select_best_goal(self, obs):
         if self.goal_set is None:
